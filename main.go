@@ -5,12 +5,11 @@ import (
 	"sync"
 )
 
-func producer(ch chan<- int) {
-	for i := 0; i < 10; i++ {
+func producer(ch chan<- int, start int, end int, id int) {
+	for i := start; i <= end; i++ {
 		ch <- i
 	}
-	fmt.Printf("producer done\n")
-	close(ch)
+	fmt.Printf("producer %d done\n", id)
 }
 
 func consumer(ch <-chan int, id int) {
@@ -30,8 +29,11 @@ func main() {
 	ch := make(chan int, 5)
 	fmt.Printf("producer starts sending integer to channel\n")
 	var wg sync.WaitGroup
+	var wgProd sync.WaitGroup
 	consumerCount := 2
+	producerCount := 3
 	wg.Add(consumerCount)
+	wgProd.Add(producerCount)
 
 	for i := 0; i < consumerCount; i++ {
 		id := i // capture loop variable
@@ -40,7 +42,17 @@ func main() {
 			consumer(ch, id)
 		}()
 	}
-	go producer(ch)
+
+	for i := 0; i < producerCount; i++ {
+		id := i // capture loop variable
+		go func() {
+			defer wgProd.Done()
+			producer(ch, id*10, id*10+9, id)
+		}()
+	}
+
+	wgProd.Wait()
+	close(ch)
 	wg.Wait()
 	fmt.Printf("main go routine done\n")
 }
