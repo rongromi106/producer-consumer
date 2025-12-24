@@ -13,14 +13,15 @@ func producer(ch chan<- int) {
 	close(ch)
 }
 
-func consumer(ch <-chan int) {
+func consumer(ch <-chan int, id int) {
 	/*
 		range ch 这样写会导致consumer一直等待ch close才会退出
 		不然就一直阻塞
 		所以要在producer中close(ch)
 	*/
+
 	for num := range ch {
-		fmt.Println(num)
+		fmt.Printf("Consumer id: %d, number: %d\n", id, num)
 	}
 
 }
@@ -28,13 +29,18 @@ func consumer(ch <-chan int) {
 func main() {
 	ch := make(chan int, 5)
 	fmt.Printf("producer starts sending integer to channel\n")
-	go producer(ch)
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		consumer(ch)
-		wg.Done()
-	}()
+	consumerCount := 2
+	wg.Add(consumerCount)
+
+	for i := 0; i < consumerCount; i++ {
+		id := i // capture loop variable
+		go func() {
+			defer wg.Done()
+			consumer(ch, id)
+		}()
+	}
+	go producer(ch)
 	wg.Wait()
 	fmt.Printf("main go routine done\n")
 }
