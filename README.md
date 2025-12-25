@@ -29,6 +29,24 @@ Project: 用channel实现producer consumer pattern
 
 - Day 4 — Select & 超时 & 非阻塞
 
+核心概念
+
+```
+select {
+case v := <-ch:
+case <-time.After(1 * time.Second):
+default:
+}
+```
+
+	•	select 是 并发控制器
+	•	timeout / try-receive / try-send
+	•	fairness（select 随机选 ready case）
+
+1. 写一个worker 如果500ms内没活干就退出
+
+2. 实现一个non blocking send 
+
 - Day 5 — Context（生产级必会）
 
 - Day 6 — sync 包（Mutex / WaitGroup / Once）
