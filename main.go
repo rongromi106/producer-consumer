@@ -5,54 +5,108 @@ import (
 	"sync"
 )
 
+// simulate pipelining: numbers -> square -> double -> sum
+
+// square worker processes data by squaring it then send to channel
+type SquareWorker struct {
+	id  int
+	in  <-chan int
+	out chan<- int
+}
+
+func NewSquareWorker(id int, input <-chan int, output chan<- int) *SquareWorker {
+	return &SquareWorker{
+		id:  id,
+		in:  input,
+		out: output,
+	}
+}
+
+func (w *SquareWorker) Work() {
+	for num := range w.in {
+		fmt.Printf("SquareWorker %d: %d\n", w.id, num*num)
+		w.out <- num * num
+	}
+}
+
+// double worker processes data by doubling it then send to channel
+type DoubleWorker struct {
+	id  int
+	in  <-chan int
+	out chan<- int
+}
+
+func NewDoubleWorker(id int, input <-chan int, output chan<- int) *DoubleWorker {
+	return &DoubleWorker{
+		id:  id,
+		in:  input,
+		out: output,
+	}
+}
+
+func (w *DoubleWorker) Work() {
+	for num := range w.in {
+		fmt.Printf("DoubleWorker %d: %d\n", w.id, num*2)
+		w.out <- num * 2
+	}
+}
+
 func producer(ch chan<- int, start int, end int, id int) {
 	for i := start; i <= end; i++ {
 		ch <- i
 	}
 	fmt.Printf("producer %d done\n", id)
-}
-
-func consumer(ch <-chan int, id int) {
-	/*
-		range ch 这样写会导致consumer一直等待ch close才会退出
-		不然就一直阻塞
-		所以要在producer中close(ch)
-	*/
-
-	for num := range ch {
-		fmt.Printf("Consumer id: %d, number: %d\n", id, num)
-	}
-
+	close(ch)
 }
 
 func main() {
-	ch := make(chan int, 5)
+	// numbers -> square -> double -> sum
+	numbers := make(chan int, 10)
+	squared := make(chan int, 10)
+	doubled := make(chan int, 10)
+
 	fmt.Printf("producer starts sending integer to channel\n")
-	var wg sync.WaitGroup
-	var wgProd sync.WaitGroup
-	consumerCount := 2
-	producerCount := 3
-	wg.Add(consumerCount)
-	wgProd.Add(producerCount)
+	go producer(numbers, 1, 10, 1)
 
-	for i := 0; i < consumerCount; i++ {
+	// Fan-out square workers
+	var wgSquare sync.WaitGroup
+	squareWorkerCount := 2
+	wgSquare.Add(squareWorkerCount)
+	for i := 0; i < squareWorkerCount; i++ {
 		id := i // capture loop variable
 		go func() {
-			defer wg.Done()
-			consumer(ch, id)
+			defer wgSquare.Done()
+			NewSquareWorker(id, numbers, squared).Work()
 		}()
 	}
+	// Fan-in: close squared when all square workers are done
+	go func() {
+		wgSquare.Wait()
+		close(squared)
+	}()
 
-	for i := 0; i < producerCount; i++ {
+	// Fan-out double workers
+	var wgDouble sync.WaitGroup
+	doubleWorkerCount := 3
+	wgDouble.Add(doubleWorkerCount)
+	for i := 0; i < doubleWorkerCount; i++ {
 		id := i // capture loop variable
 		go func() {
-			defer wgProd.Done()
-			producer(ch, id*10, id*10+9, id)
+			defer wgDouble.Done()
+			NewDoubleWorker(id, squared, doubled).Work()
 		}()
 	}
+	// Fan-in: close doubled when all double workers are done
+	go func() {
+		wgDouble.Wait()
+		close(doubled)
+	}()
 
-	wgProd.Wait()
-	close(ch)
-	wg.Wait()
+	// Sink: consume doubled concurrently while workers are producing
+	sum := 0
+	for num := range doubled {
+		sum += num
+	}
+	fmt.Printf("sum: %d\n", sum)
 	fmt.Printf("main go routine done\n")
 }
