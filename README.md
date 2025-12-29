@@ -49,6 +49,20 @@ default:
 
 - Day 5 — Context（生产级必会）
 
+核心概念
+
+- context用途
+
+- timeout
+
+- request scoped value
+
+- 谁创建 谁cancel 
+
+- 不要存大对象 
+
+练习: 改造day 3 的pipeline 支持整体cancel 以及cancle之后不泄露go routine
+
 - Day 6 — sync 包（Mutex / WaitGroup / Once）
 
 - Day 7 — 常见 Bug & Anti-Patterns（救命）
