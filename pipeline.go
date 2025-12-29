@@ -165,7 +165,12 @@ func PipeliningDemo() {
 }
 
 func producerWithContext(nums chan int, ctx context.Context, N int) {
+	rand.Seed(time.Now().UnixNano())
 	for i := 1; i <= N; i++ {
+		// random sleep: 0 ~ 1 seconds, this should cause some context cancellation and workers stopping
+		delay := time.Duration(rand.Intn(300)) * time.Millisecond
+		fmt.Printf("producer sleeping %v before sending %d\n", delay, i)
+		time.Sleep(delay)
 		select {
 		case nums <- i:
 		case <-ctx.Done():
@@ -184,7 +189,7 @@ func RunPipeline(ctx context.Context, N int, sqaureWorkerCounts int, doubleWorke
 	squared := make(chan int, 10)
 	doubled := make(chan int, 10)
 	fmt.Printf("producer starts sending integer to channel\n")
-	go producerWithContext(numbers, ctx, 10)
+	go producerWithContext(numbers, ctx, N)
 
 	// Fan-out square workers
 	var wgSquare sync.WaitGroup

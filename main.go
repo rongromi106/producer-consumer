@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 func main() {
@@ -14,6 +15,8 @@ func main() {
 	// NonBlockWorkerDemo()
 
 	// Day 5 context
-	res := RunPipeline(context.Background(), 10, 2, 3)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	res := RunPipeline(ctx, 10, 2, 3)
 	fmt.Printf("Results from pipeline run %d\n", res)
 }
