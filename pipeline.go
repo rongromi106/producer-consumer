@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -31,6 +32,27 @@ func (w *SquareWorker) Work() {
 	}
 }
 
+func (w *SquareWorker) WorkWithContext(ctx context.Context) {
+	for {
+		select {
+		case num, ok := <-w.in:
+			if !ok {
+				fmt.Println("Channel closed.")
+				return
+				// TODO: error handling
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case w.out <- num * num:
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+
+}
+
 // double worker processes data by doubling it then send to channel
 type DoubleWorker struct {
 	id  int
@@ -50,6 +72,26 @@ func (w *DoubleWorker) Work() {
 	for num := range w.in {
 		fmt.Printf("DoubleWorker %d: %d\n", w.id, num*2)
 		w.out <- num * 2
+	}
+}
+
+func (w *DoubleWorker) WorkWithContext(ctx context.Context) {
+	for {
+		select {
+		case num, ok := <-w.in:
+			if !ok {
+				fmt.Println("Channel closed.")
+				return
+				// TODO: error handling
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case w.out <- num * 2:
+			}
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
@@ -120,4 +162,76 @@ func PipeliningDemo() {
 	}
 	fmt.Printf("sum: %d\n", sum)
 	fmt.Printf("main go routine done\n")
+}
+
+func producerWithContext(nums chan int, ctx context.Context, N int) {
+	for i := 1; i <= N; i++ {
+		select {
+		case nums <- i:
+		case <-ctx.Done():
+			return
+		default:
+			fmt.Printf("Producer failed to send %d\n", i)
+		}
+	}
+	close(nums)
+}
+
+// Day 5: worker with context
+func RunPipeline(ctx context.Context, N int, sqaureWorkerCounts int, doubleWorkerCounts int) int {
+	// numbers -> square -> double -> sum
+	numbers := make(chan int, 10)
+	squared := make(chan int, 10)
+	doubled := make(chan int, 10)
+	fmt.Printf("producer starts sending integer to channel\n")
+	go producerWithContext(numbers, ctx, 10)
+
+	// Fan-out square workers
+	var wgSquare sync.WaitGroup
+	wgSquare.Add(sqaureWorkerCounts)
+	for i := 0; i < sqaureWorkerCounts; i++ {
+		id := i
+		go func() {
+			defer wgSquare.Done()
+			NewSquareWorker(id, numbers, squared).WorkWithContext(ctx)
+		}()
+	}
+
+	// Fan-in: close squared when all square workers are done
+	go func() {
+		wgSquare.Wait()
+		close(squared)
+	}()
+
+	// Fan-out double workers
+	var wgDouble sync.WaitGroup
+	wgDouble.Add(doubleWorkerCounts)
+	for i := 0; i < doubleWorkerCounts; i++ {
+		id := i // capture loop variable
+		go func() {
+			defer wgDouble.Done()
+			NewDoubleWorker(id, squared, doubled).WorkWithContext(ctx)
+		}()
+	}
+	// Fan-in: close doubled when all double workers are done
+	go func() {
+		wgDouble.Wait()
+		close(doubled)
+	}()
+
+	// Sink: consume doubled concurrently while workers are producing
+	sum := 0
+	for {
+		select {
+		case v, ok := <-doubled:
+			if !ok {
+				fmt.Printf("double channel closed, returning sum normally\n")
+				return sum
+			}
+			sum += v
+		case <-ctx.Done():
+			fmt.Printf("context canceled, returning partial sum\n")
+			return sum
+		}
+	}
 }
