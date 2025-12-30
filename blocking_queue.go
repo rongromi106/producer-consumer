@@ -79,36 +79,29 @@ func (q *BlockingQueue[T]) Take(ctx context.Context) (T, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	if ctx.Err() != nil {
-		var zero T
-		return zero, ctx.Err()
-	}
+	for {
+		// Drain takes precedence: if we have data, return it even if ctx is canceled.
+		if len(q.arr) > 0 {
+			top := q.arr[0]
+			q.arr = q.arr[1:]
+			q.notfull.Signal()
+			return top, nil
+		}
 
-	for len(q.arr) == 0 {
+		// No buffered items.
 		if q.closed {
 			var zero T
 			return zero, errors.New("queue is closed")
 		}
-		if ctx.Err() != nil {
+
+		if err := ctx.Err(); err != nil {
 			var zero T
-			return zero, ctx.Err()
+			return zero, err
 		}
+
+		// Wait for either data to arrive or the queue to be closed.
 		q.notempty.Wait()
 	}
-
-	if q.closed {
-		var zero T
-		return zero, errors.New("queue is closed")
-	}
-	if ctx.Err() != nil {
-		var zero T
-		return zero, ctx.Err()
-	}
-
-	top := q.arr[0]
-	q.arr = q.arr[1:]
-	q.notfull.Signal()
-	return top, nil
 }
 
 func (q *BlockingQueue[T]) Size() int {
