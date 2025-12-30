@@ -65,6 +65,14 @@ default:
 
 - Day 6 — sync 包（Mutex / WaitGroup / Once）
 
+核心概念
+
+- mutex
+
+- conditional var 
+
+练习: implementing blocking queue
+
 - Day 7 — 常见 Bug & Anti-Patterns（救命）
 
 - Day 8 — Worker Pool & Backpressure（工程核心）
