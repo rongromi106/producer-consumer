@@ -53,20 +53,6 @@ func (q *BlockingQueue[T]) Put(ctx context.Context, v T) error {
 		return errors.New("queue is closed")
 	}
 
-	// Wake waiters if ctx is canceled while we're waiting.
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			q.mu.Lock()
-			q.notfull.Broadcast()
-			q.notempty.Broadcast()
-			q.mu.Unlock()
-		case <-done:
-		}
-	}()
-	defer close(done)
-
 	for len(q.arr) >= q.capacity {
 		if q.closed {
 			return errors.New("queue is closed")
@@ -75,6 +61,13 @@ func (q *BlockingQueue[T]) Put(ctx context.Context, v T) error {
 			return ctx.Err()
 		}
 		q.notfull.Wait()
+	}
+
+	if q.closed {
+		return errors.New("queue is closed")
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
 	}
 
 	q.arr = append(q.arr, v)
@@ -91,20 +84,6 @@ func (q *BlockingQueue[T]) Take(ctx context.Context) (T, error) {
 		return zero, ctx.Err()
 	}
 
-	// Wake waiters if ctx is canceled while we're waiting.
-	done := make(chan struct{})
-	go func() {
-		select {
-		case <-ctx.Done():
-			q.mu.Lock()
-			q.notempty.Broadcast()
-			q.notfull.Broadcast()
-			q.mu.Unlock()
-		case <-done:
-		}
-	}()
-	defer close(done)
-
 	for len(q.arr) == 0 {
 		if q.closed {
 			var zero T
@@ -115,6 +94,15 @@ func (q *BlockingQueue[T]) Take(ctx context.Context) (T, error) {
 			return zero, ctx.Err()
 		}
 		q.notempty.Wait()
+	}
+
+	if q.closed {
+		var zero T
+		return zero, errors.New("queue is closed")
+	}
+	if ctx.Err() != nil {
+		var zero T
+		return zero, ctx.Err()
 	}
 
 	top := q.arr[0]
