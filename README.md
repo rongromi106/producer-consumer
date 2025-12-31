@@ -77,6 +77,18 @@ default:
 
 - Day 8 — Worker Pool & Backpressure（工程核心）
 
+核心概念
+
+- 固定worker pool
+
+- bounded queue
+
+- backpressure
+
+- graceful shutdown
+
+练习: 实现一个worker pool: 有n个worker, 有job queue, 支持submit / shutdown / context cancellation
+
 - Day 9 — 并发设计思维（不是语法）
 
 - Day 10 — 总复盘 & 面试准备
