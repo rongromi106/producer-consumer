@@ -88,6 +88,15 @@ default:
 - graceful shutdown
 
 练习: 实现一个worker pool: 有n个worker, 有job queue, 支持submit / shutdown / context cancellation
+	•	Start()：启动 N 个 worker
+
+	•	Submit(ctx, task)：提交任务
+
+	•	queue 满：会阻塞，直到能放进去或 ctx cancel
+
+	•	pool 关闭：返回错误
+	
+	•	Shutdown(ctx)：停止接收新任务，等待已入队 + 正在执行的任务完成，或超时返回
 
 - Day 9 — 并发设计思维（不是语法）
 
